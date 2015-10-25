@@ -1,0 +1,22 @@
+{
+  "name": "deodorant.js",
+  "version": "0.1.1",
+  "description": "Optional strong typing in Javascript without precompiling!",
+  "main": "deodorant.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dvcolgan/deodorant.js.git"
+  },
+  "keywords": [
+    "javascript", "deodorant", "js", "types", "typechecking"
+  ],
+  "author": "David Colgan",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dvcolgan/deodorant.js/issues"
+  },
+  "homepage": "https://github.com/dvcolgan/deodorant.js#readme"
+}
