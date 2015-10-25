@@ -74,7 +74,7 @@ var typecheck = (function() {
                     // Check that we have the correct number of arguments
                     if (args.length !== signature.length - 1) {
                         console.log('Arguments:', args, 'Expecting:', signature);
-                        throw new Error("Incorrect number of arguments for function \"" + fnName + "\": Expected " + signature.length + ", but got " + args.length + ".");
+                        throw new Error("Incorrect number of arguments for function \"" + fnName + "\": Expected " + (signature.length - 1) + ", but got " + args.length + ".");
                     }
 
                     // Check each argument's type
