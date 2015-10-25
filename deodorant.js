@@ -42,7 +42,14 @@ var typecheck = (function() {
                 signatures[key] = value;
             }
             else if (typeof value === 'function') {
-                fns[key] = value;
+                // If there is also a type signature hold on to this fn,
+                // otherwise just put it in the new module as is
+                if (spec[(key + '_')]) {
+                    fns[key] = value;
+                }
+                else {
+                    typedModule[key] = value
+                }
             }
             else {
                 other[key] = value;
@@ -59,7 +66,7 @@ var typecheck = (function() {
                 typedModule[fnName] = function() {
                     var args = (
                         1 <= arguments.length
-                        ? slice.call(arguments, 0) 
+                        ? Array.prototype.slice.call(arguments, 0) 
                         : []
                     );
                     var i, arg;
