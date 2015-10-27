@@ -1,24 +1,63 @@
-function makeCodeSmellError(name) {
-    error = function (message) {
-        this.name = name;
-        this.message = message || 'Code smell in the code!';
-        this.stack = (new Error()).stack;
-    }
-    error.prototype = Object.create(Error.prototype);
-    error.prototype.constructor = error;
-    return error;
-}
-
-
-UnknownTypeError = makeCodeSmellError('UnknownTypeError')
-IncorrectArgumentCountError = makeCodeSmellError('IncorrectArgumentCountError')
-IncorrectArgumentTypeError = makeCodeSmellError('IncorrectArgumentTypeError')
-NaNDetectedError = makeCodeSmellError('NaNDetectedError')
-UndefinedArgumentError = makeCodeSmellError('UndefinedArgumentError')
-IncorrectReturnTypeError = makeCodeSmellError('IncorrectReturnTypeError')
-
-
 var typecheck = (function() {
+    function makeCodeSmellError(name) {
+        error = function (message) {
+            this.name = name;
+            this.message = message || 'Code smell in the code!';
+            this.stack = (new Error()).stack;
+        }
+        error.prototype = Object.create(Error.prototype);
+        error.prototype.constructor = error;
+        return error;
+    }
+
+    UnknownTypeError = makeCodeSmellError('UnknownTypeError')
+    IncorrectArgumentCountError = makeCodeSmellError('IncorrectArgumentCountError')
+    IncorrectArgumentTypeError = makeCodeSmellError('IncorrectArgumentTypeError')
+    IncorrectReturnTypeError = makeCodeSmellError('IncorrectReturnTypeError')
+
+    //function getArrayType(arr) {
+    //    var allSame = true;
+    //    var typeName = 'Any';
+    //    
+    //    for (var i=0; i<arr.length; i++) {
+    //        var value = arr[i];
+    //        var type = betterTypeof(value);
+    //        
+    //    }
+    //    return '['
+    //}
+    //['[Number]', '{name: String, count: Number}']
+
+    //function objectMatchesType(obj, typeName) {
+    //    if (typeName === 'Object') {
+    //        if (betterTypeof(obj) == 'Object')
+    //            return true;
+    //    }
+    //    if (typeName[0] === '{' && typeName[typeName.length-1] === '}') {
+
+    //    }
+    //    return 'Object'
+    //}
+
+    //function valueIsOfType(value, type) {
+    //    if (Array.isArray(type)) {
+    //        if (type.length !== 1) {
+    //            throw new InvalidTypeSignatureError(type.toString() + ' is not a valid type signature.')
+    //        }
+    //        if (!Array.isArray(value)) {
+    //            return false;
+    //        }
+
+    //    }
+    //}
+
+    function valueMatchesType(value, type) {
+        if (betterTypeof(value) !== type && type !== 'Any') {
+            return false;
+        }
+        return true;
+    }
+
     function betterTypeof(value) {
         if (value == null) {
             return 'Null';
@@ -77,26 +116,10 @@ var typecheck = (function() {
                 arg = args[i];
                 var argType = argTypes[i];
 
-                if (betterTypeof(arg) !== argType && argType !== 'Void') {
-                    throw new IncorrectArgumentTypeError("Function \"" + fnName + "\" argument " + i + " called with " + (betterTypeof(arg)) + ", expecting " + signature[i] + ".");
-                }
-            }
-
-            // Make sure no arguments are NaN
-            for (i=0; i<args.length; i++) {
-                arg = args[i];
-                if (betterTypeof(arg) === 'NaN') {
-                    //console.log('Arguments:', args, 'Expecting:', signature);
-                    throw new NaNDetectedError("Found a NaN argument passed to function \"" + fnName + "\", expected " + signature[i] + ".");
-                }
-            }
-
-            // Make sure no arguments are undefined
-            for (i=0; i<args.length; i++) {
-                arg = args[i];
-                if (typeof arg === 'undefined') {
-                    //console.log('Arguments:', args, 'Expecting:', signature);
-                    throw new UndefinedArgumentError("Found an undefined argument passed to function \"" + fnName + "function \", expected " + signature[i] + ".");
+                if (!valueMatchesType(arg, argType)) {
+                    throw new IncorrectArgumentTypeError(
+                        "Function \"" + fnName + "\" argument " + i + " called with " + (betterTypeof(arg)) + ", expecting " + signature[i] + "."
+                    );
                 }
             }
 
@@ -104,14 +127,11 @@ var typecheck = (function() {
             returnValue = fn.apply(null, args);
 
             // Check return value type
-            if (betterTypeof(returnValue) !== returnType) {
-                if (returnType !== 'Void') {
-                    //console.log('Arguments:', args, 'Expecting:', signature);
-                    throw new IncorrectReturnTypeError("Function \"" + fnName + "\" returned " + (betterTypeof(returnValue)) + ", expected " + returnType + ".");
-                }
-                else if (betterTypeof(returnValue) == 'NaN') {
-                    throw new NaNDetectedError("Found a NaN argument returned from function \"" + fnName + "\", expected " + returnType + ".");
-                }
+            if (!valueMatchesType(returnValue, returnType)) {
+                //console.log('Arguments:', args, 'Expecting:', signature);
+                throw new IncorrectReturnTypeError(
+                    "Function \"" + fnName + "\" returned " + (betterTypeof(returnValue)) + ", expected " + returnType + "."
+                );
             }
 
             return returnValue;
@@ -159,12 +179,11 @@ var typecheck = (function() {
         typeOf: betterTypeof,
         module: typecheckModule,
         makeTyped: makeTyped,
+        valueMatchesType: valueMatchesType,
 
         UnknownTypeError: UnknownTypeError,
         IncorrectArgumentCountError: IncorrectArgumentCountError,
         IncorrectArgumentTypeError: IncorrectArgumentTypeError,
-        NaNDetectedError: NaNDetectedError,
-        UndefinedArgumentError: UndefinedArgumentError,
         IncorrectReturnTypeError: IncorrectReturnTypeError
     };
 
