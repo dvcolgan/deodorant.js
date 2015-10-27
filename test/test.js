@@ -1,19 +1,48 @@
 var chai = require('chai')
 var expect = chai.expect;
-var deodorant = require('../deodorant');
+var Deodorant = require('../deodorant');
 
-function checkSignatureForValues(signature, values) {
-    return function() {
-        var argValues = values.slice(0, values.length - 1);
-        var returnValue = values[values.length-1];
-        var fn = function () {
-            return returnValue;
-        };
+var typecheck = new Deodorant('debug');
+typecheck.addType('Position', '(Number, Number)');
+typecheck.addType('Size', '{width: Number, height: Number}');
 
-        fn = deodorant.makeTyped(signature, fn);
-        fn.apply(null, argValues);
-    }
-}
+var checkSignatureForValues = typecheck.checkSignatureForValues;
+
+describe('compound types of tuple, array, and object', function() {
+    it('should allow nesting tuples and arrays', function() {
+        expect(checkSignatureForValues(
+            ['([Number], [String])', 'Null'],
+            [[[1,3,4], ['a','b','c','d']], null]
+        )).to.not.throw();
+    });
+    it('should allow one type in an array', function() {
+        expect(checkSignatureForValues(
+            ['[Number]', '[String]', '[Boolean]', 'Null'],
+            [[1,2,3,4], ['a','b','c','d'], [true, false], null]
+        )).to.not.throw();
+    });
+    it('should allow different types in a tuple', function() {
+        expect(checkSignatureForValues(
+            ['(Number, String, Boolean, [Number])', 'Null'],
+            [[1, 'b', true, [1,2,3,4]], null]
+        )).to.not.throw();
+    });
+    it('should allow objects with certain keys', function() {
+        expect(checkSignatureForValues(
+            ['{pos: Position, size: Size, username: String, onlineUsers: [String], isLoggedIn: Boolean}', 'Null'],
+            [{pos: [50, 50], size: {width: 200, height: 200}, username: 'dvcolgan', onlineUsers: ['david', 'colgan'], isLoggedIn: false}, null]
+        )).to.not.throw();
+    });
+});
+
+describe('type aliases', function() {
+    it('should work for tuples', function() {
+        expect(checkSignatureForValues(
+            ['Position', 'String', 'Null'],
+            [[50, 100], 'something', null]
+        )).to.not.throw();
+    });
+});
 
 describe('type checking', function() {
     describe('should check argument lengths', function() {
@@ -21,14 +50,14 @@ describe('type checking', function() {
             expect(checkSignatureForValues(
                 ['Number', 'Number', 'Number', 'Null'],
                 [4, null]
-            )).to.throw(deodorant.IncorrectArgumentCountError);
+            )).to.throw(typecheck.IncorrectArgumentCountError);
         });
 
         it('should throw for too many arguments', function() {
             expect(checkSignatureForValues(
                 ['Number', 'Number', 'Number', 'Null'],
                 [4, 3, 2, 1, null]
-            )).to.throw(deodorant.IncorrectArgumentCountError);
+            )).to.throw(typecheck.IncorrectArgumentCountError);
         });
         it('should not throw for the correct number of arguments', function() {
             expect(checkSignatureForValues(
@@ -63,22 +92,10 @@ describe('type checking', function() {
                 [function() {}, function() {}, function() {}]
             )).to.not.throw();
         });
-        it('should check arrays', function() {
-            expect(checkSignatureForValues(
-                ['Array', 'Array', 'Array'],
-                [[1,2,3], [], ['a', 'b', 'c']]
-            )).to.not.throw();
-        });
         it('should check null', function() {
             expect(checkSignatureForValues(
                 ['Null', 'Null', 'Null'],
                 [null, null, null]
-            )).to.not.throw();
-        });
-        it('should check objects', function() {
-            expect(checkSignatureForValues(
-                ['Object', 'Object', 'Object'],
-                [{x: 1, y: 2}, {}, {a: 'z', b: 'y', c: 'x'}]
             )).to.not.throw();
         });
     });
@@ -88,20 +105,20 @@ describe('type checking', function() {
             expect(checkSignatureForValues(
                 ['String', 'Number', 'Boolean'],
                 ['a', {} / 2, true]
-            )).to.throw(deodorant.IncorrectArgumentTypeError);
+            )).to.throw(typecheck.IncorrectArgumentTypeError);
         });
         it('should catch return values of NaN', function() {
             expect(checkSignatureForValues(
                 ['String', 'Number', 'Boolean'],
                 ['a', 3, {} / 2]
-            )).to.throw(deodorant.IncorrectReturnTypeError);
+            )).to.throw(typecheck.IncorrectReturnTypeError);
         });
     });
 });
 
 
 describe('typecheck.module', function() {
-    var typedModule = deodorant.module({
+    var typedModule = typecheck.module({
         add_: ['Number', 'Number', 'Number'],
         add: function(x, y) { return x + y; },
 

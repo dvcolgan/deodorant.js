@@ -1,4 +1,7 @@
-var typecheck = (function() {
+var Deodorant = function(mode) {
+    var check = (mode === 'debug');
+    var customTypes = {};
+
     function makeCodeSmellError(name) {
         error = function (message) {
             this.name = name;
@@ -15,80 +18,123 @@ var typecheck = (function() {
     IncorrectArgumentTypeError = makeCodeSmellError('IncorrectArgumentTypeError')
     IncorrectReturnTypeError = makeCodeSmellError('IncorrectReturnTypeError')
 
-    //function getArrayType(arr) {
-    //    var allSame = true;
-    //    var typeName = 'Any';
-    //    
-    //    for (var i=0; i<arr.length; i++) {
-    //        var value = arr[i];
-    //        var type = betterTypeof(value);
-    //        
-    //    }
-    //    return '['
-    //}
-    //['[Number]', '{name: String, count: Number}']
-
-    //function objectMatchesType(obj, typeName) {
-    //    if (typeName === 'Object') {
-    //        if (betterTypeof(obj) == 'Object')
-    //            return true;
-    //    }
-    //    if (typeName[0] === '{' && typeName[typeName.length-1] === '}') {
-
-    //    }
-    //    return 'Object'
-    //}
-
-    //function valueIsOfType(value, type) {
-    //    if (Array.isArray(type)) {
-    //        if (type.length !== 1) {
-    //            throw new InvalidTypeSignatureError(type.toString() + ' is not a valid type signature.')
-    //        }
-    //        if (!Array.isArray(value)) {
-    //            return false;
-    //        }
-
-    //    }
-    //}
-
-    function valueMatchesType(value, type) {
-        if (betterTypeof(value) !== type && type !== 'Any') {
+    function valueMatchesTupleType(value, type) {
+        if (!Array.isArray(value)) {
             return false;
+        }
+        var subTypes = type.replace(/ /g, '').slice(1, -1).split(',');
+        for (var i=0; i<subTypes.length; i++) {
+            var subType = subTypes[i];
+            var subValue = value[i];
+            if (!valueMatchesType(subValue, subType)) {
+                return false;
+            }
         }
         return true;
     }
 
-    function betterTypeof(value) {
-        if (value == null) {
-            return 'Null';
+    function valueMatchesArrayType(value, type) {
+        if (!Array.isArray(value)) {
+            return false;
         }
-        // NaN is the only JS type that is not equal to itself
-        if (value != value) {
-            return 'NaN';
+        var subType = type.replace(/ /g, '').slice(1, -1);
+        for (i=0; i<value.length; i++) {
+            var subValue = value[i];
+            if (!valueMatchesType(subValue, subType)) {
+                return false;
+            }
         }
-        // typeof [] == 'object'
-        if (Array.isArray(value)) {
-            return 'Array';
+        return true;
+    }
+
+    function valueMatchesObjectType(value, type) {
+        var pairs = type.replace(/ /g, '').slice(1, -1).split(',');
+        // Go through each key:value pair and make sure
+        // the key is present and the type checks
+        for (var i=0; i<pairs.length; i++) {
+            var pair = pairs[i].split(':');
+            var key = pair[0];
+            var subType = pair[1];
+            if (!(key in value)) {
+                return false;
+            }
+            var subValue = value[key];
+            if (!valueMatchesType(subValue, subType)) {
+                return false;
+            }
         }
-        if (typeof value == 'number') {
-            return 'Number';
+        return true;
+    }
+
+    function valueMatchesSimpleType(value, type) {
+        if (value !== value) return false;
+        if (value === undefined) return false;
+
+        if (value === null && type === 'Null') return true;
+        if (typeof value === 'number' && type === 'Number') return true;
+        if (typeof value === 'string' && type === 'String') return true;
+        if (typeof value === 'boolean' && type === 'Boolean') return true;
+        if (typeof value == 'function' && type === 'Function') return true;
+
+        if (type === 'Any') return true;
+        return false;
+    }
+
+    function valueMatchesType(value, type) { 
+        if (type in customTypes) {
+            type = customTypes[type];
         }
-        if (typeof value == 'string') {
-            return 'String';
+
+        // Tuple (array in JS) of a fixed number of different types
+        // '(Number, String, Boolean)'
+        if (type[0] === '(') {
+            try {
+                return valueMatchesTupleType(value, type);
+            }
+            catch (err) {
+                throw new UnknownTypeError('Invalid Tuple type ' + type);
+            }
         }
-        if (typeof value == 'boolean') {
-            return 'Boolean';
+
+        // Array of all the same type or empty
+        // '[Number]' '[String]'
+        else if (type[0] === '[') {
+            try {
+                return valueMatchesArrayType(value, type);
+            }
+            catch (err) {
+                throw new UnknownTypeError('Invalid Array type ' + type);
+            }
         }
-        if (typeof value == 'function') {
-            return 'Function';
+
+        // Object with specific keys
+        // {pos: (Number, Number), size: {width: Number, height: Number}, username: String, isLoggedIn: Boolean}
+        else if (type[0] === '{') {
+            try {
+                return valueMatchesObjectType(value, type);
+            }
+            catch (err) {
+                throw new UnknownTypeError('Invalid Object type ' + type);
+            }
         }
-        if (typeof value == 'object') {
-            return 'Object';
+
+        else {
+            return valueMatchesSimpleType(value, type);
         }
-        throw new UnknownTypeError('Unknown type for value #{value}.');
     }
 
     function makeTyped(signature, fn, fnName) {
+        if (!check) {
+            return fn;
+        }
+
+        for (var j=0; j<signature.length; j++) {
+            var type = signature[j];
+            if ((typeof type) !== 'string') {
+                throw new UnknownTypeError('Invalid type ' + type);
+            }
+        }
+
         if (fnName === undefined && fn.name) {
             fnName = fn.name;
         }
@@ -97,28 +143,25 @@ var typecheck = (function() {
         }
         var returnType = signature[signature.length-1];
         var argTypes = signature.slice(0, signature.length - 1);
+
         return function() {
-            var args = (
-                1 <= arguments.length
-                ? Array.prototype.slice.call(arguments, 0) 
-                : []
-            );
-            var i, arg;
+            var args = (1 <= arguments.length ? Array.prototype.slice.call(arguments, 0) : []);
 
             // Check that we have the correct number of arguments
             if (args.length !== signature.length - 1) {
-                //console.log('Arguments:', args, 'Expecting:', signature);
-                throw new IncorrectArgumentCountError("Incorrect number of arguments for function \"" + fnName + "\": Expected " + (signature.length - 1) + ", but got " + args.length + ".");
+                throw new IncorrectArgumentCountError(
+                    "Incorrect number of arguments for function \"" + fnName + "\": Expected " + (signature.length - 1) + ", but got " + args.length + ": " + JSON.stringify(args)
+                );
             }
 
             // Check each argument's type
-            for (i=0; i<args.length; i++) {
-                arg = args[i];
+            for (var i=0; i<args.length; i++) {
+                var arg = args[i];
                 var argType = argTypes[i];
 
                 if (!valueMatchesType(arg, argType)) {
                     throw new IncorrectArgumentTypeError(
-                        "Function \"" + fnName + "\" argument " + i + " called with " + (betterTypeof(arg)) + ", expecting " + signature[i] + "."
+                        "Function \"" + fnName + "\" argument " + i + " called with " + JSON.stringify(arg) + ", expecting " + signature[i] + "."
                     );
                 }
             }
@@ -128,9 +171,8 @@ var typecheck = (function() {
 
             // Check return value type
             if (!valueMatchesType(returnValue, returnType)) {
-                //console.log('Arguments:', args, 'Expecting:', signature);
                 throw new IncorrectReturnTypeError(
-                    "Function \"" + fnName + "\" returned " + (betterTypeof(returnValue)) + ", expected " + returnType + "."
+                    "Function \"" + fnName + "\" returned " + JSON.stringify(returnValue) + ", expected " + returnType + "."
                 );
             }
 
@@ -173,30 +215,48 @@ var typecheck = (function() {
         }
 
         return typedModule;
-    };
+    }
+
+    function addType(name, expansion) {
+        customTypes[name] = expansion;
+    }
+
+    function checkSignatureForValues(signature, values) {
+        return function() {
+            var argValues = values.slice(0, values.length - 1);
+            var returnValue = values[values.length-1];
+            var fn = function () {
+                return returnValue;
+            };
+
+            fn = makeTyped(signature, fn);
+            fn.apply(null, argValues);
+        }
+    }
 
     return {
-        typeOf: betterTypeof,
-        module: typecheckModule,
-        makeTyped: makeTyped,
-        valueMatchesType: valueMatchesType,
-
         UnknownTypeError: UnknownTypeError,
-        IncorrectArgumentCountError: IncorrectArgumentCountError,
         IncorrectArgumentTypeError: IncorrectArgumentTypeError,
-        IncorrectReturnTypeError: IncorrectReturnTypeError
+        IncorrectReturnTypeError: IncorrectReturnTypeError,
+
+        makeTyped: makeTyped,
+        module: typecheckModule,
+        addType: addType,
+        valueMatchesType: valueMatchesType,
+        checkSignatureForValues: checkSignatureForValues
+
     };
 
-})();
+};
 
 if (typeof module === "object" && module != null && module.exports) {
-    module.exports = typecheck;
+    module.exports = Deodorant;
 }
 else if (typeof define === "function" && define.amd) {
     define(function() {
-        return typecheck;
+        return Deodorant;
     });
 }
 else {
-    window.typecheck = typecheck;
+    window.Deodorant = Deodorant;
 }
