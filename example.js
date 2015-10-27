@@ -1,4 +1,4 @@
-var typecheck = require('./typecheck')
+var typecheck = require('./deodorant')
 
 
 mylib = typecheck({
