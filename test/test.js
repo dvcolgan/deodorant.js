@@ -33,6 +33,19 @@ describe('compound types of tuple, array, and object', function() {
             [{pos: [50, 50], size: {width: 200, height: 200}, username: 'dvcolgan', onlineUsers: ['david', 'colgan'], isLoggedIn: false}, null]
         )).to.not.throw();
     });
+    it('should allow objects with all the same type of values', function() {
+        expect(checkSignatureForValues(
+            ['{Position}', 'Void'],
+            [{
+                p1: [50, 50], 
+                p2: [50, 50], 
+                p3: [50, 50], 
+                p4: [50, 50], 
+                p5: [50, 50], 
+                p6: [50, 50], 
+            }, undefined]
+        )).to.not.throw();
+    });
 });
 
 describe('type aliases', function() {

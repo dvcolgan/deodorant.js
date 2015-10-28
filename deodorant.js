@@ -48,19 +48,34 @@ var Deodorant = function(mode) {
     }
 
     function valueMatchesObjectType(value, type) {
-        var pairs = type.replace(/ /g, '').slice(1, -1).split(',');
-        // Go through each key:value pair and make sure
-        // the key is present and the type checks
-        for (var i=0; i<pairs.length; i++) {
-            var pair = pairs[i].split(':');
-            var key = pair[0];
-            var subType = pair[1];
-            if (!(key in value)) {
-                return false;
+        var key, subType, subValue;
+
+        // {Number} just means a dict of string to Number only
+        if (!/[:,]/.test(type)) {
+            subType = type.slice(1, -1);
+            for (key in value) {
+                subValue = value[key];
+                if (!valueMatchesType(subValue, subType)) {
+                    return false;
+                }
             }
-            var subValue = value[key];
-            if (!valueMatchesType(subValue, subType)) {
-                return false;
+        }
+        // otherwise we are looking for specific keys
+        else {
+            var pairs = type.replace(/ /g, '').slice(1, -1).split(',');
+            // Go through each key:value pair and make sure
+            // the key is present and the type checks
+            for (var i=0; i<pairs.length; i++) {
+                var pair = pairs[i].split(':');
+                key = pair[0];
+                subType = pair[1];
+                if (!(key in value)) {
+                    return false;
+                }
+                subValue = value[key];
+                if (!valueMatchesType(subValue, subType)) {
+                    return false;
+                }
             }
         }
         return true;
@@ -68,7 +83,9 @@ var Deodorant = function(mode) {
 
     function valueMatchesSimpleType(value, type) {
         if (value !== value) return false;
-        if (value === undefined) return false;
+        if (value === undefined) {
+            return (type === 'Void');
+        }
 
         if (value === null && type === 'Null') return true;
         if (typeof value === 'number' && type === 'Number') return true;
@@ -76,7 +93,7 @@ var Deodorant = function(mode) {
         if (typeof value === 'boolean' && type === 'Boolean') return true;
         if (typeof value == 'function' && type === 'Function') return true;
 
-        if (type === 'Any') return true;
+        if (type === 'Any' || type === 'Void') return true;
         return false;
     }
 
