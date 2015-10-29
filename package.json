@@ -1,6 +1,6 @@
 {
   "name": "deodorant",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Optional strong typing in Javascript without precompiling!",
   "main": "deodorant.js",
   "scripts": {
