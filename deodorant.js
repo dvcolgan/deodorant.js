@@ -1,6 +1,6 @@
 var Deodorant = function(mode) {
     var check = (mode === 'debug');
-    var customTypes = {};
+    var aliases = {};
 
     function makeCodeSmellError(name) {
         error = function (message) {
@@ -13,10 +13,10 @@ var Deodorant = function(mode) {
         return error;
     }
 
-    UnknownTypeError = makeCodeSmellError('UnknownTypeError')
-    IncorrectArgumentCountError = makeCodeSmellError('IncorrectArgumentCountError')
-    IncorrectArgumentTypeError = makeCodeSmellError('IncorrectArgumentTypeError')
-    IncorrectReturnTypeError = makeCodeSmellError('IncorrectReturnTypeError')
+    UnknownTypeError = makeCodeSmellError('UnknownTypeError');
+    IncorrectArgumentCountError = makeCodeSmellError('IncorrectArgumentCountError');
+    IncorrectArgumentTypeError = makeCodeSmellError('IncorrectArgumentTypeError');
+    IncorrectReturnTypeError = makeCodeSmellError('IncorrectReturnTypeError');
 
     function valueMatchesTupleType(value, type) {
         if (!Array.isArray(value)) {
@@ -31,6 +31,24 @@ var Deodorant = function(mode) {
             }
         }
         return true;
+    }
+
+    function valueToString(value) {
+        if (value !== value) {
+            return 'NaN';
+        }
+        else {
+            return JSON.stringify(value);
+        }
+    }
+
+    function valuesToString(values) {
+        var strs = [];
+        for (var i=0; i<values.length; i++) {
+            var value = values[i];
+            strs.push(valueToString(value));
+        }
+        return strs;
     }
 
     function valueMatchesArrayType(value, type) {
@@ -98,8 +116,8 @@ var Deodorant = function(mode) {
     }
 
     function valueMatchesType(value, type) { 
-        if (type in customTypes) {
-            type = customTypes[type];
+        if (type in aliases) {
+            type = aliases[type];
         }
 
         // Tuple (array in JS) of a fixed number of different types
@@ -109,7 +127,7 @@ var Deodorant = function(mode) {
                 return valueMatchesTupleType(value, type);
             }
             catch (err) {
-                throw new UnknownTypeError('Invalid Tuple type ' + type);
+                return false;
             }
         }
 
@@ -120,7 +138,7 @@ var Deodorant = function(mode) {
                 return valueMatchesArrayType(value, type);
             }
             catch (err) {
-                throw new UnknownTypeError('Invalid Array type ' + type);
+                return false;
             }
         }
 
@@ -131,7 +149,7 @@ var Deodorant = function(mode) {
                 return valueMatchesObjectType(value, type);
             }
             catch (err) {
-                throw new UnknownTypeError('Invalid Object type ' + type);
+                return false;
             }
         }
 
@@ -140,7 +158,7 @@ var Deodorant = function(mode) {
         }
     }
 
-    function makeTyped(signature, fn, fnName) {
+    function checkFunction(signature, fn, fnName) {
         if (!check) {
             return fn;
         }
@@ -152,11 +170,13 @@ var Deodorant = function(mode) {
             }
         }
 
-        if (fnName === undefined && fn.name) {
-            fnName = fn.name;
-        }
-        else {
-            fnName = 'anonymous';
+        if (fnName === undefined) {
+            if (fn.name) {
+                fnName = fn.name;
+            }
+            else {
+                fnName = 'anonymous';
+            }
         }
         var returnType = signature[signature.length-1];
         var argTypes = signature.slice(0, signature.length - 1);
@@ -167,7 +187,7 @@ var Deodorant = function(mode) {
             // Check that we have the correct number of arguments
             if (args.length !== signature.length - 1) {
                 throw new IncorrectArgumentCountError(
-                    "Incorrect number of arguments for function \"" + fnName + "\": Expected " + (signature.length - 1) + ", but got " + args.length + ": " + JSON.stringify(args)
+                    "Incorrect number of arguments for function \"" + fnName + "\": Expected " + (signature.length - 1) + ", but got " + args.length + ": " + valuesToString(args)
                 );
             }
 
@@ -178,7 +198,7 @@ var Deodorant = function(mode) {
 
                 if (!valueMatchesType(arg, argType)) {
                     throw new IncorrectArgumentTypeError(
-                        "Function \"" + fnName + "\" argument " + i + " called with " + JSON.stringify(arg) + ", expecting " + signature[i] + "."
+                        "Function \"" + fnName + "\" argument " + i + " called with " + valueToString(arg) + ", expecting " + signature[i] + ": " + valuesToString(args)
                     );
                 }
             }
@@ -189,7 +209,7 @@ var Deodorant = function(mode) {
             // Check return value type
             if (!valueMatchesType(returnValue, returnType)) {
                 throw new IncorrectReturnTypeError(
-                    "Function \"" + fnName + "\" returned " + JSON.stringify(returnValue) + ", expected " + returnType + "."
+                    "Function \"" + fnName + "\" returned " + valueToString(returnValue) + ", expected " + returnType + ": " + valuesToString(args)
                 );
             }
 
@@ -197,10 +217,9 @@ var Deodorant = function(mode) {
         };
     };
 
-    function typecheckModule(spec) {
+    function checkModule(spec, this_) {
         var signatures = {};
         var fns = {};
-        var other = {};
         var typedModule = {};
 
         // Parse out the module's type signatures and functions
@@ -212,30 +231,46 @@ var Deodorant = function(mode) {
             else if (typeof value === 'function') {
                 // If there is also a type signature hold on to this fn,
                 // otherwise just put it in the new module as is
+                value = value.bind(typedModule);
                 if (spec[(key + '_')]) {
                     fns[key] = value;
                 }
                 else {
-                    typedModule[key] = value
+                    typedModule[key] = value;
                 }
             }
             else {
-                other[key] = value;
+                typedModule[key] = value;
             }
         }
+
 
         // Wrap each function in the module
         for (var fnName in fns) {
             var fn = fns[fnName];
             var signature = signatures[fnName + '_'];
-            typedModule[fnName] = makeTyped(signature, fn, fnName);
+            typedModule[fnName] = checkFunction(signature, fn, fnName);
         }
 
         return typedModule;
     }
 
-    function addType(name, expansion) {
-        customTypes[name] = expansion;
+    function checkClass(class_) {
+        if (!check) {
+            return class_;
+        }
+        return function(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10) {
+            var instance = new class_(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
+            return checkModule(instance);
+        }
+        //var prototype_ = class_.prototype_;
+        //var wrappedClass = checkFunction(class_.prototype.constructor_, class_, 'constructor');
+        //wrappedClass.prototype = checkModule(prototype_);
+        //return wrappedClass;
+    }
+
+    function addAlias(name, expansion) {
+        aliases[name] = expansion;
     }
 
     function checkSignatureForValues(signature, values) {
@@ -246,22 +281,23 @@ var Deodorant = function(mode) {
                 return returnValue;
             };
 
-            fn = makeTyped(signature, fn);
+            fn = checkFunction(signature, fn);
             fn.apply(null, argValues);
         }
     }
 
     return {
         UnknownTypeError: UnknownTypeError,
+        IncorrectArgumentCountError: IncorrectArgumentCountError,
         IncorrectArgumentTypeError: IncorrectArgumentTypeError,
         IncorrectReturnTypeError: IncorrectReturnTypeError,
 
-        makeTyped: makeTyped,
-        module: typecheckModule,
-        addType: addType,
+        checkFunction: checkFunction,
+        checkModule: checkModule,
+        checkClass: checkClass,
+        addAlias: addAlias,
         valueMatchesType: valueMatchesType,
         checkSignatureForValues: checkSignatureForValues
-
     };
 
 };

@@ -1,6 +1,6 @@
 {
   "name": "deodorant",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Optional strong typing in Javascript without precompiling!",
   "main": "deodorant.js",
   "scripts": {
@@ -25,6 +25,7 @@
   "homepage": "https://github.com/dvcolgan/deodorant.js#readme",
   "devDependencies": {
     "chai": "^3.4.0",
+    "coffee-script": "^1.10.0",
     "mocha": "^2.3.3"
   }
 }
