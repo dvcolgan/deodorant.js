@@ -259,14 +259,15 @@ var Deodorant = function(mode) {
         if (!check) {
             return class_;
         }
-        return function(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10) {
-            var instance = new class_(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
-            return checkModule(instance);
+        var factory = function(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10) {
+            return checkModule(new class_(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10));
         }
-        //var prototype_ = class_.prototype_;
-        //var wrappedClass = checkFunction(class_.prototype.constructor_, class_, 'constructor');
-        //wrappedClass.prototype = checkModule(prototype_);
-        //return wrappedClass;
+        if ('constructor_' in class_.prototype) {
+            return checkFunction(class_.prototype.constructor_, factory, 'constructor');
+        }
+        else {
+            return factory;
+        }
     }
 
     function addAlias(name, expansion) {
