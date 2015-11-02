@@ -38,7 +38,13 @@ var Deodorant = function(mode) {
             return 'NaN';
         }
         else {
-            return JSON.stringify(value);
+            try {
+                var value = JSON.stringify(value);
+                return value;
+            }
+            catch (err) {
+                return value;
+            }
         }
     }
 
