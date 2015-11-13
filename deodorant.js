@@ -127,13 +127,6 @@ var Deodorant = function(mode) {
     function valueMatchesSimpleType(value, type) {
         // Clean up any extraneous spaces
         type = type.replace(/ /g, '');
-
-        // If the value ends with a ? it is a nullable value
-        var isNullable = false;
-        if (type[type.length - 1] === '?') {
-            type = type.slice(0, -1);
-            isNullable = true;
-        }
         
         // Always cry if NaN. Nobody would ever want NaN. Why is NaN in the language?
         if (value !== value) return false;
@@ -144,7 +137,7 @@ var Deodorant = function(mode) {
         }
 
         // Null is simple enough, thank goodness for triple-style equals
-        if (value === null && (type === 'Null' || isNullable)) return true;
+        if (value === null && type === 'Null') return true;
 
         // typeof works as it should for all of these types yay
         if (typeof value === 'number' && type === 'Number') return true;
@@ -158,6 +151,16 @@ var Deodorant = function(mode) {
     }
 
     function valueMatchesType(value, type) { 
+        // If the value ends with a ? it is a nullable value
+        if (typeof type === 'string' && type[type.length - 1] === '?') {
+            if (value === null) {
+                return true;
+            }
+            else {
+                type = type.slice(0, -1);
+            }
+        }
+
         // Replace any aliases with a deep copy
         // so we can do further modifications
         if (type in aliases) {
@@ -165,7 +168,6 @@ var Deodorant = function(mode) {
         }
 
         if (Array.isArray(type)) {
-            console.log('is array', type);
             if (type.length === 0) {
                 // TODO make this show a better error message somehow
                 return false;
@@ -174,12 +176,10 @@ var Deodorant = function(mode) {
             // If the last element is []?, check for null,
             // if it is not null, remove that element
             if (type[type.length - 1] === '[]?') {
-                console.log(type);
                 if (value === null) {
                     return true;
                 }
                 else {
-                    console.log(type.toString());
                     type = type.slice(0, -1);
                 }
             }

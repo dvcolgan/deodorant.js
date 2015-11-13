@@ -110,6 +110,16 @@ describe('nullable types', function() {
             [null, null]
         )).to.not.throw();
     });
+    it('should work for aliases', function() {
+        expect(checkSignatureForValues(
+            ['Position?', 'Position?', 'Position?'],
+            [[50, 100], [44, 33], [11, 22]]
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            ['Position?', 'Position?', 'Position?'],
+            [null, null, null]
+        )).to.not.throw();
+    });
 });
 
 describe('type checking', function() {
