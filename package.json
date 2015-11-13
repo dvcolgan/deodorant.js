@@ -1,10 +1,10 @@
 {
   "name": "deodorant",
-  "version": "1.2.2",
+  "version": "2.0.0",
   "description": "Optional strong typing in Javascript without precompiling!",
   "main": "deodorant.js",
   "scripts": {
-    "test": "mocha test/"
+    "test": "mocha test/test.js"
   },
   "repository": {
     "type": "git",

@@ -2,6 +2,12 @@
 
 Optional strong typing in Javascript without precompiling!
 
+## Rationale
+
+Javascript is a pretty swell language and has a lot of nice things.  But one thing it is kind of sucky at is telling you why something broke.  How many times have you had to track down the source of a NaN or undefined value?  It was probably because some function was supposed to take 3 parameters and you accidentally changed something else somewhere else that now causes it to only pass 2 so the third parameter was undefined and then NaN happened and 8 functions down the call stack you finally get an error.  Ack!
+
+In the real physical world, wearing deodorant helps us to stay cool and not smell bad.  Apply a little deodorant.js to your Javascript for maximum protection from code smells!
+
 ## Installation
 
     npm install deodorant
@@ -14,13 +20,13 @@ Create a new deodorant by instantiating the Deodorant object.
     var deodorant = new Deodorant();
 ```
 
-By default this does absolutely nothing and provides no performance penalty to your code.  Use this in production.  But to make deodorant.js check your code, enable debug mode:
+By default this does absolutely nothing and provides no performance penalty to your code!  Hooray!  Use this in production.  But in order to make deodorant.js check your code and not just be a worthless wrapper, enable debug mode:
 
 ```
     var deodorant = new Deodorant('debug');
 ```
 
-Now you can call `deodorant.module()` on any module and add Haskellesque type annotations to your functions as you export it:
+Now you can call `deodorant.checkModule()` on any Javascript module and add Haskellesque-style type annotations to your functions as you export it:
 
 ```javascript
 module.exports = deodorant.module({
@@ -41,37 +47,142 @@ module.exports = deodorant.module({
     log_: ["String", "Void"],
     log: function(message) {
         console.log(message);
-    },
-
-    objLength_: ["Object", "Number"],
-    objLength: function(obj) {
-        var count = 0;
-        for (var key in obj) {
-            count++;
-        }
-        return count;
     }
 });
 ```
 
 Now deodorant.js will:
+
 - Check that we have the correct number of arguments
 - Check each argument's type
 - Make sure no arguments are NaN
 - Make sure no arguments are undefined
 - Check return value type
 
-Load as a global on `window`, with CommonJS `require`, and AMD.
+And, it will throw an exception if any of these are ever not true.  Deodorant.js has your back.  Party!
+
+Load as a global on `window`, with CommonJS `require`, or however AMD does things.
+
+## Simple Types
+
+Type signatures may include any of the follow simple types:
+
+| Type     | Accepted values |
+| -------- | --------------- |
+| Number   | a number (0, 1, 1.0, -2.0) |
+| String   | a string ('a', 'hello', 'what is up') |
+| Boolean  | true or false |
+| Function | any Javascript function |
+| Null     | the single value of null |
+| Any      | anything that isn't NaN or undefined |
+| Void     | anything that isn't NaN, but undefined is ok |
+
+## Compound Types
+
+Compound types include:
+
+* Tuples: fixed length JS array, values can be different types
+* Arrays: variable length JS array, values all the same type
+* Single type Objects: JS object with values all the same type
+* Multiple type Objects: JS object with specified keys and values
+
+All compound types can be nested arbitrarily deeply.
+
+Examples of tuples:
+
+```javascript
+['Number', 'Number', 'Number']
+[3, 3, 3]
+
+['Number', 'String', 'Boolean']
+[3, 'a', true]
+
+[['Number', 'String'], ['Boolean', 'String']]
+[[1, 'a'], [true, 'b']]
+```
+
+Examples of arrays:
+
+```javascript
+['Number']
+[3, 3, 3]
+
+['String']
+['a', 'b', 'c']
+```
+
+Single type objects use this special syntax.  You might think of this as a Dict or Hash type:
+
+```javascript
+{'*': 'Number'}
+{a: 1, b: 2, c: 3}
+
+{'*': 'String'}
+{a: 'b', b: 'c', c: 'a'}
+
+{'*': 'Boolean'}
+{a: true, b: false, c: true}
+```
+
+Multiple type objects specify the individual keys and their values.  This is like a record type:
+```javascript
+{col: 'Number', row: 'Number'}
+{col: 1, row: 2}
+
+{
+    position: {
+        col: 'Number',
+        row: 'Number'
+    },
+    size: {
+        width: 'Number',
+        height: 'Number'
+    }
+}
+{position: {col: 1, row: 2}, size: {width: 50, height: 50}}
+```
+
+## Nullable types
+
+Any type may be made to allow that value or null by putting a `?` on the end of the type:
+
+```javascript
+['Number', 'String', 'Number?']
+```
+
+The above signature can return a Number or Null.
+
+Because array and object literals are used for tuple, array, and object types, you can't really put a `?` on the end of them.  So special syntax had to be made, which I'm not really that happy with.  If anyone has any better ideas here I am open to changing this:
+
+Nullable arrays and tuples:
+
+```javascript
+['Number', '[]?']
+[1, 2, 3] or null
+
+['Number, 'String', 'Boolean', '[]?']
+[1, 'a', true] or null
+```
+
+Nullable objects:
+
+```javascript
+{'*': 'Number', '{}?': true}
+{a: 1, b: 2, c: 3} or null
+
+{col: 'Number', row: 'Number', '{}?': true}
+{col: 1, row: 2} or null
+```
 
 ## Type Aliases
 
-Writing out the type signature for an object with a lot of keys for a lot of functions is lame, so Deodorant.js gives you _type aliases_.  Register one with the `addType` method:
+Writing out the type signature for an object with a lot of keys for a lot of functions is lame, so Deodorant.js gives you _type aliases_.  Register one with the `addAlias` method:
 
 ```
 deodorant = new Deodorant('debug')
-deodorant.addType('Vector2', '{x: Number, y: Number}')
-deodorant.addType('Coords', '{col: Number, row: Number}')
-deodorant.addType('Size', '{width: Number, height: Number}')
+deodorant.addAlias('Vector2', {x: 'Number', y: 'Number'})
+deodorant.addAlias('Coords', {col: 'Number', row: 'Number'})
+deodorant.addAlias('Size', {width: 'Number', height: 'Number'})
 ```
 
 And now you can use the alias in type signatures:
@@ -90,14 +201,14 @@ And now you can use the alias in type signatures:
 You can even nest type aliases to validate deeply nested model layer-style objects:
 
 ```
-deodorant.addType('Player', '{username: String, position: Vector2, size: Size}');
+deodorant.addAlias('Player', {username: 'String', position: 'Vector2', size: 'Size'});
 ```
 
 This can also be used to makes sure you are passing objects created from libraries by specifying their methods:
 
 ```
     // Make a type for an HTML5 2d canvas context
-    deodorant.addType('Context', '{fillStyle: String, fillRect: Function, fillText: Function}');
+    deodorant.addAlias('Context', {fillStyle: 'String', fillRect: 'Function', fillText: 'Function'});
 
 ```
 
@@ -116,8 +227,15 @@ The system will check to make sure that you pass in an object that at least has 
 
 ```
     // A thennable from any promise library
-    deodorant.addType('Promise', '{then: Function, catch: Function}')
+    deodorant.addAlias('Promise', {then: 'Function', catch: 'Function'})
 
     // Socket.io socket
-    deodorant.addType('Socket', '{id: String, on: Function, emit: Function}')
+    deodorant.addAlias('Socket', {id: 'String', on: 'Function', emit: 'Function'})
 ```
+
+## Wishlist
+
+* Improve error messages for objects (say which keys/values didn't validate)
+* Better error messages for malformed type annotations (objects which contain extra quote marks)
+* Typecheck the arguments and return values of functions passed as parameters, maybe something like ['Number', '->', 'Number', '->', 'Number'] is a function that takes two numbers and returns a number?
+* Typecheck the returned value of a promise somehow by hooking into the promise chain?

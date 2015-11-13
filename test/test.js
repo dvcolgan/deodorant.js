@@ -3,39 +3,40 @@ var expect = chai.expect;
 var Deodorant = require('../deodorant');
 
 var typecheck = new Deodorant('debug');
-typecheck.addType('Position', '(Number, Number)');
-typecheck.addType('Size', '{width: Number, height: Number}');
+typecheck.addAlias('Position', ['Number', 'Number']);
+typecheck.addAlias('Size', {width: 'Number', height: 'Number'});
 
-var checkSignatureForValues = typecheck.checkSignatureForValues;
+checkSignatureForValues = typecheck.checkSignatureForValues;
+
 
 describe('compound types of tuple, array, and object', function() {
     it('should allow nesting tuples and arrays', function() {
         expect(checkSignatureForValues(
-            ['([Number], [String])', 'Null'],
+            [[['Number'], ['String']], 'Null'],
             [[[1,3,4], ['a','b','c','d']], null]
         )).to.not.throw();
     });
     it('should allow one type in an array', function() {
         expect(checkSignatureForValues(
-            ['[Number]', '[String]', '[Boolean]', 'Null'],
+            [['Number'], ['String'], ['Boolean'], 'Null'],
             [[1,2,3,4], ['a','b','c','d'], [true, false], null]
         )).to.not.throw();
     });
     it('should allow different types in a tuple', function() {
         expect(checkSignatureForValues(
-            ['(Number, String, Boolean, [Number])', 'Null'],
+            [['Number', 'String', 'Boolean', ['Number']], 'Null'],
             [[1, 'b', true, [1,2,3,4]], null]
         )).to.not.throw();
     });
     it('should allow objects with certain keys', function() {
         expect(checkSignatureForValues(
-            ['{pos: Position, size: Size, username: String, onlineUsers: [String], isLoggedIn: Boolean}', 'Null'],
+            [{pos: 'Position', size: 'Size', username: 'String', onlineUsers: ['String'], isLoggedIn: 'Boolean'}, 'Null'],
             [{pos: [50, 50], size: {width: 200, height: 200}, username: 'dvcolgan', onlineUsers: ['david', 'colgan'], isLoggedIn: false}, null]
         )).to.not.throw();
     });
     it('should allow objects with all the same type of values', function() {
         expect(checkSignatureForValues(
-            ['{Position}', 'Void'],
+            [{'*': 'Position'}, 'Void'],
             [{
                 p1: [50, 50], 
                 p2: [50, 50], 
@@ -48,11 +49,65 @@ describe('compound types of tuple, array, and object', function() {
     });
 });
 
+
 describe('type aliases', function() {
     it('should work for tuples', function() {
         expect(checkSignatureForValues(
-            ['Position', 'String', 'Null'],
-            [[50, 100], 'something', null]
+            [['Position', 'String'], 'Null'],
+            [[[50, 100], 'something'], null]
+        )).to.not.throw();
+    });
+});
+
+
+describe('nullable types', function() {
+    it('should accept null if a ? is on the end', function() {
+        expect(checkSignatureForValues(
+            ['Number?', 'Number?', 'Number?'],
+            [null, null, null]
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            ['Number?', 'Number?', 'Number?'],
+            [1, 2, 3]
+        )).to.not.throw();
+    });
+    it('should allow nullable tuples containing []?', function() {
+        expect(checkSignatureForValues(
+            [['Number', 'String', 'Boolean', '[]?'], 'Null'],
+            [[1, 'a', true], null]
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            [['Number', 'String', 'Boolean', '[]?'], 'Null'],
+            [null, null]
+        )).to.not.throw();
+    });
+    it('should allow nullable arrays containing []?', function() {
+        expect(checkSignatureForValues(
+            [['Number', '[]?'], ['String', '[]?'], ['Boolean', '[]?']],
+            [[1, 2, 3], ['a', 'b', 'c'], [true, false, true]]
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            [['Number', '[]?'], ['String', '[]?'], ['Boolean', '[]?']],
+            [null, null, null]
+        )).to.not.throw();
+    });
+    it('should allow nullable objects containing {}?', function() {
+        expect(checkSignatureForValues(
+            [{'*': 'Number', '{}?': true}, 'Null'],
+            [{a: 1, b: 2, c: 3}, null]
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            [{'*': 'Number', '{}?': true}, 'Null'],
+            [null, null]
+        )).to.not.throw();
+
+        expect(checkSignatureForValues(
+            [{col: 'Number', row: 'Number', '{}?': true}, 'Null'],
+            [{col: 1, row: 2}, null]
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            [{col: 'Number', row: 'Number', '{}?': true}, 'Null'],
+            [null, null]
         )).to.not.throw();
     });
 });
@@ -111,6 +166,68 @@ describe('type checking', function() {
                 [null, null, null]
             )).to.not.throw();
         });
+        it('should check tuples', function() {
+            expect(checkSignatureForValues(
+                [
+                    ['Number', 'String', 'Boolean'],
+                    ['Number', 'String', 'Boolean'],
+                    ['Number', 'String', 'Boolean'],
+                    ['Number', 'String', 'Boolean']
+                ],
+                [
+                    [1, 'a', true],
+                    [2, 'b', false],
+                    [3, 'c', true],
+                    [4, 'd', false]
+                ]
+            )).to.not.throw();
+        });
+        it('should check arrays', function() {
+            expect(checkSignatureForValues(
+                [
+                    ['Number'],
+                    ['String'],
+                    ['Boolean'],
+                    ['Null']
+                ],
+                [
+                    [1, 2, 3],
+                    ['a', 'b', 'c'],
+                    [true, false, true],
+                    [null, null, null]
+                ]
+            )).to.not.throw();
+        });
+        it('should check objects of the same type', function() {
+            expect(checkSignatureForValues(
+                [
+                    {'*': 'Number'},
+                    {'*': 'String'},
+                    {'*': 'Boolean'},
+                ],
+                [
+                    {'a': 1, 'b': 2, 'c': 3},
+                    {'a': 'c', 'b': 'b', 'c': 'a'},
+                    {'a': true, 'b': false, 'c': true}
+                ]
+            )).to.not.throw();
+        });
+        it('should check objects of different types and keys', function() {
+            expect(checkSignatureForValues(
+                [
+                    {num: 'Number', str: 'String', bool: 'Boolean'},
+                    {num: 'Number', str: 'String', bool: 'Boolean'},
+                    {num: 'Number', str: 'String', bool: 'Boolean'},
+                    {num: 'Number', str: 'String', bool: 'Boolean'}
+                ],
+                [
+                    {num: 1, str: 'a', bool: true},
+                    {num: 2, str: 'b', bool: false},
+                    {num: 3, str: 'c', bool: true},
+                    {num: 4, str: 'd', bool: false}
+                ]
+            )).to.not.throw();
+        });
     });
 
     describe('should catch NaN', function() {
@@ -130,8 +247,8 @@ describe('type checking', function() {
 });
 
 
-describe('typecheck.module', function() {
-    var typedModule = typecheck.module({
+describe('checkModule', function() {
+    var typedModule = typecheck.checkModule({
         add_: ['Number', 'Number', 'Number'],
         add: function(x, y) { return x + y; },
 
