@@ -1,6 +1,7 @@
 var Deodorant = function(mode) {
     var check = (mode === 'debug');
     var aliases = {};
+    var filters = {};
 
     function makeCodeSmellError(name) {
         error = function (message) {
@@ -34,6 +35,54 @@ var Deodorant = function(mode) {
         }
     }
 
+    function stripAnnotation(type) {
+        // If the value ends with a ? it is a nullable value
+        if (typeof type === 'string') {
+            // If there is a ? in the annotation,
+            // that is the start of the annotation
+            var qIdx = type.indexOf('?')
+            if (qIdx >= 0) {
+                return [
+                    type.slice(0, qIdx),
+                    type.slice(qIdx).split('|')
+                ];
+            }
+            // Otherwise check for filters
+            else {
+                var pieces = type.split('|');
+                return [
+                    pieces[0],
+                    pieces.slice(1, pieces.length)
+                ];
+            }
+        }
+        else if (Array.isArray(type)) {
+            // If the last element is the filter token, use that
+            if (type[type.length - 1].indexOf('[]') === 0) {
+                annotation = type[type.length - 1].slice(2);
+                type = type.slice(0, -1);
+                return [type, annotation.split('|')];
+            }
+            else {
+                return [type, []];
+            }
+        }
+        else if (type !== null && typeof type == 'object') {
+            for (var typeKey in type) {
+                if (typeKey.indexOf('{}') === 0) {
+                    annotation = typeKey.slice(2);
+                    delete type[typeKey];
+
+                    return [type, annotation.split('|')];
+                }
+            }
+            return [type, []];
+        }
+        else {
+            return [type, []];
+        }
+    }
+
     function valuesToString(values) {
         var strs = [];
         for (var i=0; i<values.length; i++) {
@@ -41,6 +90,28 @@ var Deodorant = function(mode) {
             strs.push(valueToString(value));
         }
         return strs;
+    }
+
+    function valuePassesFilter(value, filter) {
+        var pieces = filter.split(':');
+        var filterName = pieces[0];
+        var fn = filters[filterName];
+        return fn(value, pieces[1]);
+    }
+
+    function valuePassesFilters(value, filters) {
+        if (filters) {
+            for (var i=0; i<filters.length; i++) {
+                if (!valuePassesFilter(value, filters[i])) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    function valueMatchesRegExpType(value, type) {
+        return type.test(value);
     }
 
     function valueMatchesTupleType(value, type) {
@@ -102,23 +173,12 @@ var Deodorant = function(mode) {
     }
 
     function valueMatchesObjectType(value, type) {
-        // Check for the magic {}? nullable key and remove it
-        // if the value is not null to not interfere with
-        // anything else
-        if (type['{}?']) {
-            if (value === null) {
-                return true;
-            }
-            else {
-                type = JSON.parse(JSON.stringify(type));
-                delete type['{}?'];
-            }
-        }
         // {'*': 'Number'} means a dict of string to Number only
         if (type['*'] && Object.keys(type).length === 1) {
             return valueMatchesSingleTypeObjectType(value, type);
         }
         // otherwise we are looking for specific keys
+        // {pos: ['Number', 'Number'], size: {width: 'Number', height: 'Number'}, username: 'String', isLoggedIn: 'Boolean'}
         else {
             return valueMatchesMultipleTypeObjectType(value, type);
         }
@@ -127,7 +187,7 @@ var Deodorant = function(mode) {
     function valueMatchesSimpleType(value, type) {
         // Clean up any extraneous spaces
         type = type.replace(/ /g, '');
-        
+
         // Always cry if NaN. Nobody would ever want NaN. Why is NaN in the language?
         if (value !== value) return false;
 
@@ -150,38 +210,40 @@ var Deodorant = function(mode) {
         return false;
     }
 
-    function valueMatchesType(value, type) { 
-        // If the value ends with a ? it is a nullable value
-        if (typeof type === 'string' && type[type.length - 1] === '?') {
-            if (value === null) {
-                return true;
-            }
-            else {
-                type = type.slice(0, -1);
-            }
+    function valueMatchesType(value, type) {
+
+        var res = stripAnnotation(type);
+        type = res[0];
+        var annotation = res[1];
+        var isNullable = annotation[0] === '?';
+        var filters = annotation.slice(1, annotation.length);
+
+        // Do nullable check
+        if (isNullable && value === null) {
+            return true;
+        }
+
+        if (filters.length > 0 && !valuePassesFilters(value, filters)) {
+            return false;
         }
 
         // Replace any aliases with a deep copy
         // so we can do further modifications
-        if (type in aliases) {
+        if (typeof type === 'string' && type in aliases) {
             type = JSON.parse(JSON.stringify(aliases[type]));
         }
 
-        if (Array.isArray(type)) {
+
+        // Check regexps
+        if (Object.prototype.toString.call(type) === '[object RegExp]') {
+            return valueMatchesRegExpType(value, type);
+        }
+
+        // Check arrays and tuples
+        else if (Array.isArray(type)) {
             if (type.length === 0) {
                 // TODO make this show a better error message somehow
                 return false;
-            }
-
-            // If the last element is []?, check for null,
-            // if it is not null, remove that element
-            if (type[type.length - 1] === '[]?') {
-                if (value === null) {
-                    return true;
-                }
-                else {
-                    type = type.slice(0, -1);
-                }
             }
             if (type.length === 1) {
                 // Array of all the same type or empty
@@ -208,8 +270,7 @@ var Deodorant = function(mode) {
             }
         }
 
-        // Object with specific keys
-        // {pos: ['Number', 'Number'], size: {width: 'Number', height: 'Number'}, username: 'String', isLoggedIn: 'Boolean'}
+        // Check objects
         else if (type !== null && typeof type == 'object') {
             try {
                 return valueMatchesObjectType(value, type);
@@ -219,6 +280,7 @@ var Deodorant = function(mode) {
             }
         }
 
+        // Check simple values
         else {
             return valueMatchesSimpleType(value, type);
         }
@@ -265,7 +327,7 @@ var Deodorant = function(mode) {
 
                 if (!valueMatchesType(arg, argType)) {
                     throw new IncorrectArgumentTypeError(
-                        "Function \"" + fnName + "\" argument " + i + " called with " + valueToString(arg) + ", expecting " + JSON.stringify(signature[i]) + ": " + valuesToString(args)
+                        "Function \"" + fnName + "\" argument " + i + " called with " + valueToString(arg) + ", expecting " + JSON.stringify(signature[i])
                     );
                 }
             }
@@ -276,7 +338,7 @@ var Deodorant = function(mode) {
             // Check return value type
             if (!valueMatchesType(returnValue, returnType)) {
                 throw new IncorrectReturnTypeError(
-                    "Function \"" + fnName + "\" returned " + valueToString(returnValue) + ", expected " + JSON.stringify(returnType) + ": " + valuesToString(args)
+                    "Function \"" + fnName + "\" returned " + valueToString(returnValue) + ", expected " + JSON.stringify(returnType)
                 );
             }
 
@@ -340,6 +402,9 @@ var Deodorant = function(mode) {
     function addAlias(name, expansion) {
         aliases[name] = expansion;
     }
+    function addFilter(name, fn) {
+        filters[name] = fn;
+    }
 
     function checkSignatureForValues(signature, values) {
         return function() {
@@ -364,6 +429,7 @@ var Deodorant = function(mode) {
         checkModule: checkModule,
         checkClass: checkClass,
         addAlias: addAlias,
+        addFilter: addFilter,
         valueMatchesType: valueMatchesType,
         checkSignatureForValues: checkSignatureForValues
     };

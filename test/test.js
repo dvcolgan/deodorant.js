@@ -8,6 +8,45 @@ typecheck.addAlias('Size', {width: 'Number', height: 'Number'});
 
 checkSignatureForValues = typecheck.checkSignatureForValues;
 
+typecheck.addFilter('gte', function(value, comparedTo) {
+    return value >= comparedTo;
+});
+typecheck.addFilter('lte', function(value, comparedTo) {
+    return value <= comparedTo;
+});
+typecheck.addFilter('gt', function(value, comparedTo) {
+    return value > comparedTo;
+});
+typecheck.addFilter('lt', function(value, comparedTo) {
+    return value < comparedTo;
+});
+
+typecheck.addAlias('Slug', /[-a-z0-9]+/);
+
+
+describe('filters', function() {
+    it('should allow specifying new filters', function() {
+        expect(checkSignatureForValues(
+            [
+                'Number|gte:0|lte:100',
+                'Number|gte:0|lte:100',
+                'Number|gt:0|lt:100',
+                'Number|gt:0|lt:100'
+            ],
+            [0, 100, 1, 99]
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            [
+                'Number|gte:0|lte:100',
+                'Number|gte:0|lte:100',
+                'Number|gt:0|lt:100',
+                'Number|gt:0|lt:100'
+            ],
+            [-1, 101, 0, 100]
+        )).to.throw();
+    });
+});
+
 
 describe('compound types of tuple, array, and object', function() {
     it('should allow nesting tuples and arrays', function() {
@@ -175,6 +214,18 @@ describe('type checking', function() {
                 ['Null', 'Null', 'Null'],
                 [null, null, null]
             )).to.not.throw();
+        });
+        it('should check regexps that pass', function() {
+            expect(checkSignatureForValues(
+                [/a/, /b/, /c/],
+                ['a', 'b', 'c']
+            )).to.not.throw();
+        });
+        it('should check regexps that don\'t pass', function() {
+            expect(checkSignatureForValues(
+                [/a/, /b/, /c/],
+                ['b', 'c', 'a']
+            )).to.throw();
         });
         it('should check tuples', function() {
             expect(checkSignatureForValues(

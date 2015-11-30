@@ -233,6 +233,76 @@ The system will check to make sure that you pass in an object that at least has 
     deodorant.addAlias('Socket', {id: 'String', on: 'Function', emit: 'Function'})
 ```
 
+## RegExp Types and Filters
+
+For finer control of the values that can be passed to a function, you can use RegExps and Filters.  If you supply a Javascript RegExp object as a type, that value must pass a call to `test` on that RegExp.  For example:
+
+```javascript
+takesASlug_: [/-a-z0-9/, 'Boolean']
+takesASlug: function(slug) {
+    ...
+}
+```
+
+This can be especially powerful when combined with type aliases:
+
+```javascript
+deodorant.addAlias('Slug', /-a-z0-9/);
+```
+
+For even finer control, you can use a filter, which allows you to specify an arbitrary predicate function to determine whether or not a value passes the checker.  The syntax is similar to Django template filters, using a `|` and specifying an argument with `:`.  A filter does not need to have any parameters.
+
+```javascript
+deodorant.addFilter('gte', function(value, compareTo) {
+    return value >= compareTo;
+});
+
+takesGreaterThanZero_: ['Number|gte:0', 'Boolean']
+takesGreaterThanZero: function(num) {
+    ...
+}
+```
+
+You could create filters for whether a number is within a certain range, whether a string contains certain characters, or an array contains specific values.
+
+```javascript
+deodorant.addFilter('containsAtLeast5Trues', function(value) {
+    var trueCount = 0;
+    for (var i=0; i<value.length; i++) {
+        if (value[i] === true) {
+            trueCount++;
+        }
+    }
+    return trueCount >= 5;
+}
+
+deodorant.addFilter('containsAtLeast5TrueValues', function(value) {
+    var trueCount = 0;
+    for (var key in value) {
+        var subValue = value[key];
+        
+        if (subValue === true) {
+            trueCount++;
+        }
+    }
+    return trueCount >= 5;
+}
+```
+
+Naturally we have the same problem with arrays and objects as we had with nullable values, so to apply a filter to an array or object, add a `'[]|filterName`` or `'{}|filterName'` element or key into an array or object respectively:
+
+```javascript
+someFn_: [
+    ['Boolean', '[]|containsAtLeast5Trues'],
+    {'*': 'Number', '{}|containsAtLeast5TrueValues': true},
+    'Boolean'
+]
+someFn: function(arr, obj) {
+    ...
+}
+```
+
+
 ## Wishlist
 
 * Improve error messages for objects (say which keys/values didn't validate)
