@@ -3,22 +3,6 @@ var Deodorant = function(mode) {
     var aliases = {};
     var filters = {};
 
-    function makeCodeSmellError(name) {
-        error = function (message) {
-            this.name = name;
-            this.message = message || 'Code smell in the code!';
-            this.stack = (new Error()).stack;
-        }
-        error.prototype = Object.create(Error.prototype);
-        error.prototype.constructor = error;
-        return error;
-    }
-
-    UnknownTypeError = makeCodeSmellError('UnknownTypeError');
-    IncorrectArgumentCountError = makeCodeSmellError('IncorrectArgumentCountError');
-    IncorrectArgumentTypeError = makeCodeSmellError('IncorrectArgumentTypeError');
-    IncorrectReturnTypeError = makeCodeSmellError('IncorrectReturnTypeError');
-
     function valueToString(value) {
         if (value !== value) {
             return 'NaN';
@@ -92,125 +76,134 @@ var Deodorant = function(mode) {
         return strs;
     }
 
-    function valuePassesFilter(value, filter) {
+    function checkFilter(value, filter) {
         var pieces = filter.split(':');
         var filterName = pieces[0];
         var fn = filters[filterName];
-        return fn(value, pieces[1]);
-    }
-
-    function valuePassesFilters(value, filters) {
-        if (filters) {
-            for (var i=0; i<filters.length; i++) {
-                if (!valuePassesFilter(value, filters[i])) {
-                    return false;
-                }
-            }
+        if (!fn(value, pieces[1])) {
+            throw new Error(value + ' does not pass filter ' + filter);
         }
-        return true;
     }
 
-    function valueMatchesRegExpType(value, type) {
-        return type.test(value);
+    function checkFilters(value, filters) {
+        for (var i=0; i<filters.length; i++) {
+            checkFilter(value, filters[i]);
+        }
     }
 
-    function valueMatchesTupleType(value, type) {
+    function checkRegExpType(value, type) {
+        if (!type.test(value)) {
+            throw new Error(value + ' does not match ' + type);
+        }
+    }
+
+    function checkTupleType(value, type) {
         if (!Array.isArray(value)) {
-            return false;
+            throw new Error(value + ' is not a JS array of type ' + type);
         }
         // For each type in the tuple, match the corresponding value
         for (var i=0; i<type.length; i++) {
             var subType = type[i];
             var subValue = value[i];
-            if (!valueMatchesType(subValue, subType)) {
-                return false;
+            if (!checkValuesType(subValue, subType)) {
+                throw new Error(subValue + ' does not match ' + subType);
             }
         }
-        return true;
     }
 
-    function valueMatchesArrayType(value, type) {
+    function checkArrayType(value, type) {
         if (!Array.isArray(value)) {
-            return false;
+            throw new Error(value + ' is not a JS array of type ' + type);
         }
         // Iterate over each element of the value, comparing it
         // with the one type
         var subType = type[0];
         for (i=0; i<value.length; i++) {
             var subValue = value[i];
-            if (!valueMatchesType(subValue, subType)) {
-                return false;
+            if (!checkValuesType(subValue, subType)) {
+                throw new Error(subValue + ' does not match ' + subType);
             }
         }
-        return true;
     }
 
-    function valueMatchesSingleTypeObjectType(value, type) {
+    function checkSingleTypeObjectType(value, type) {
         var subType = type['*'];
         for (var key in value) {
             var subValue = value[key];
-            if (!valueMatchesType(subValue, subType)) {
-                return false;
+            try {
+                checkValuesType(subValue, subType);
+            }
+            catch (e) {
+                throw new Error(key + ' in object does not match: ' + e.message);
             }
         }
-        return true;
     }
 
-    function valueMatchesMultipleTypeObjectType(value, type) {
+    function checkMultipleTypeObjectType(value, type) {
         // Go through each key:value pair and make sure
         // the key is present and the type checks
         for (var key in type) {
             var subType = type[key];
-            if (!(key in value)) {
-                return false;
+            if (value[key] == undefined) {
+                throw new Error('Object missing key ' + key);
             }
             var subValue = value[key];
-            if (!valueMatchesType(subValue, subType)) {
-                return false;
+            try {
+                checkValuesType(subValue, subType);
+            }
+            catch (e) {
+                throw new Error('Key ' + key + ' does not match: ' + e.message);
             }
         }
-        return true;
     }
 
-    function valueMatchesObjectType(value, type) {
+    function checkObjectType(value, type) {
         // {'*': 'Number'} means a dict of string to Number only
         if (type['*'] && Object.keys(type).length === 1) {
-            return valueMatchesSingleTypeObjectType(value, type);
+            checkSingleTypeObjectType(value, type);
         }
         // otherwise we are looking for specific keys
         // {pos: ['Number', 'Number'], size: {width: 'Number', height: 'Number'}, username: 'String', isLoggedIn: 'Boolean'}
         else {
-            return valueMatchesMultipleTypeObjectType(value, type);
+            checkMultipleTypeObjectType(value, type);
         }
     }
 
-    function valueMatchesSimpleType(value, type) {
+    function checkSimpleType(value, type) {
         // Clean up any extraneous spaces
         type = type.replace(/ /g, '');
 
         // Always cry if NaN. Nobody would ever want NaN. Why is NaN in the language?
-        if (value !== value) return false;
+        if (value !== value) {
+            throw new Error('NaN does not match type ' + type);
+        }
 
         // Only don't cry for undefined if type is Void
         if (value === undefined) {
-            return (type === 'Void');
+            if (type !== 'Void') {
+                throw new Error('Undefined does not match type ' + type);
+            }
+            else {
+                return;
+            }
         }
 
         // Null is simple enough, thank goodness for triple-style equals
-        if (value === null && type === 'Null') return true;
+        if (value === null && type === 'Null') return;
 
         // typeof works as it should for all of these types yay
-        if (typeof value === 'number' && type === 'Number') return true;
-        if (typeof value === 'string' && type === 'String') return true;
-        if (typeof value === 'boolean' && type === 'Boolean') return true;
-        if (typeof value == 'function' && type === 'Function') return true;
+        if (typeof value === 'number' && type === 'Number') return;
+        if (typeof value === 'string' && type === 'String') return;
+        if (typeof value === 'boolean' && type === 'Boolean') return;
+        if (typeof value == 'function' && type === 'Function') return;
 
         // The Any type will cry on undefined or NaN but will accept anything else
-        if (type === 'Any' || type === 'Void') return true;
-        return false;
+        if (type === 'Any' || type === 'Void') return;
+
+        throw new Error(value + ' does not match type ' + type);
     }
 
-    function valueMatchesType(value, type) {
+    function checkValuesType(value, type) {
 
         var res = stripAnnotation(type);
         type = res[0];
@@ -220,11 +213,11 @@ var Deodorant = function(mode) {
 
         // Do nullable check
         if (isNullable && value === null) {
-            return true;
+            return;
         }
 
-        if (filters.length > 0 && !valuePassesFilters(value, filters)) {
-            return false;
+        if (filters.length > 0) {
+            checkFilters(value, filters);
         }
 
         // Replace any aliases with a deep copy
@@ -236,7 +229,8 @@ var Deodorant = function(mode) {
 
         // Check regexps
         if (Object.prototype.toString.call(type) === '[object RegExp]') {
-            return valueMatchesRegExpType(value, type);
+            checkRegExpType(value, type);
+            return;
         }
 
         // Check arrays and tuples
@@ -249,7 +243,7 @@ var Deodorant = function(mode) {
                 // Array of all the same type or empty
                 // ['Number'] ['String']
                 try {
-                    return valueMatchesArrayType(value, type);
+                    checkArrayType(value, type);
                 }
                 catch (err) {
                     return false;
@@ -261,7 +255,7 @@ var Deodorant = function(mode) {
                 // of same type, but is also mostly useless anyway
                 // ['Number', String, Boolean]'
                 try {
-                    var varr = valueMatchesTupleType(value, type);
+                    var varr = checkTupleType(value, type);
                     return varr;
                 }
                 catch (err) {
@@ -272,17 +266,12 @@ var Deodorant = function(mode) {
 
         // Check objects
         else if (type !== null && typeof type == 'object') {
-            try {
-                return valueMatchesObjectType(value, type);
-            }
-            catch (err) {
-                return false;
-            }
+            checkObjectType(value, type);
         }
 
         // Check simple values
         else {
-            return valueMatchesSimpleType(value, type);
+            checkSimpleType(value, type);
         }
     }
 
@@ -295,7 +284,7 @@ var Deodorant = function(mode) {
         //for (var j=0; j<signature.length; j++) {
         //    var type = signature[j];
         //    if ((typeof type) !== 'string') {
-        //        throw new UnknownTypeError('Invalid type ' + type);
+        //        throw new Error('Invalid type ' + type);
         //    }
         //}
 
@@ -315,9 +304,7 @@ var Deodorant = function(mode) {
 
             // Check that we have the correct number of arguments
             if (args.length !== signature.length - 1) {
-                throw new IncorrectArgumentCountError(
-                    "Incorrect number of arguments for function \"" + fnName + "\": Expected " + (signature.length - 1) + ", but got " + args.length + ": " + valuesToString(args)
-                );
+                throw new Error('Incorrect number of arguments for function "' + fnName + '": Expected ' + (signature.length - 1) + ', but got ' + args.length);
             }
 
             // Check each argument's type
@@ -325,10 +312,11 @@ var Deodorant = function(mode) {
                 var arg = args[i];
                 var argType = argTypes[i];
 
-                if (!valueMatchesType(arg, argType)) {
-                    throw new IncorrectArgumentTypeError(
-                        "Function \"" + fnName + "\" argument " + i + " called with " + valueToString(arg) + ", expecting " + JSON.stringify(signature[i])
-                    );
+                try {
+                    checkValuesType(arg, argType);
+                }
+                catch (e) {
+                    throw new Error('Function "' + fnName + '" argument ' + i + ' does not match: ' + e.message);
                 }
             }
 
@@ -336,10 +324,11 @@ var Deodorant = function(mode) {
             returnValue = fn.apply(null, args);
 
             // Check return value type
-            if (!valueMatchesType(returnValue, returnType)) {
-                throw new IncorrectReturnTypeError(
-                    "Function \"" + fnName + "\" returned " + valueToString(returnValue) + ", expected " + JSON.stringify(returnType)
-                );
+            try {
+                checkValuesType(returnValue, returnType);
+            }
+            catch (e) {
+                throw new Error('Function "' + fnName + '" return value does not match: ' + e.message);
             }
 
             return returnValue;
@@ -420,17 +409,11 @@ var Deodorant = function(mode) {
     }
 
     return {
-        UnknownTypeError: UnknownTypeError,
-        IncorrectArgumentCountError: IncorrectArgumentCountError,
-        IncorrectArgumentTypeError: IncorrectArgumentTypeError,
-        IncorrectReturnTypeError: IncorrectReturnTypeError,
-
         checkFunction: checkFunction,
         checkModule: checkModule,
         checkClass: checkClass,
         addAlias: addAlias,
         addFilter: addFilter,
-        valueMatchesType: valueMatchesType,
         checkSignatureForValues: checkSignatureForValues
     };
 

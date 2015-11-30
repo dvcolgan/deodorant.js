@@ -86,6 +86,12 @@ describe('compound types of tuple, array, and object', function() {
             }, undefined]
         )).to.not.throw();
     });
+    it('should make sure all keys are present', function() {
+        expect(checkSignatureForValues(
+            [{x: 'Number', y: 'Number'}, 'Void'],
+            [{x: 1}, null]
+        )).to.throw();
+    });
 });
 
 
