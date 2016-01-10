@@ -336,9 +336,9 @@ someFn: function(arr, obj) {
 
 
 ## Wishlist
-* Optional arguments, maybe something like ['String*', 'String'] for a function that can optionally take a string parameter and returns a string. An optional parameter cannot come before a nonoptional parameter, and can't be the return type of a function.
 * For functions returning Void, recheck the parameters passed in after the function is called, since Void usually means those parameters would be mutated
 * Allow annotating a class to specify the types of member variables. On calling any method on that class, recheck the member variables to make sure they are the correct type.  Maybe have the class have a static value of types_: {var1: 'String', var2: 'String'}
 * Better error messages for malformed type annotations
-* Typecheck the arguments and return values of functions passed as parameters, maybe something like ['Number', '->', 'Number', '->', 'Number'] is a function that takes two numbers and returns a number?
+* Typecheck the arguments and return values of functions passed as parameters, maybe something like ['Number', '->', 'Number', '->', 'Number'] is a function that takes two numbers and returns a number? Or maybe a syntax like [types.Fn('Number', 'Number'), 'Number'] is a function that takes a function that takes an integer and returns an integer, and returns an integer?
 * Typecheck the returned value of a promise somehow by hooking into the promise chain?
+
