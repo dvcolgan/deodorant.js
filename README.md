@@ -29,7 +29,7 @@ By default this does absolutely nothing and provides no performance penalty to y
 Now you can call `deodorant.checkModule()` on any Javascript module and add Haskellesque-style type annotations to your functions as you export it:
 
 ```javascript
-module.exports = deodorant.module({
+module.exports = deodorant.checkModule({
     add_: ["Number", "Number", "Number"],
     add: function(x, y) {
         return x + y;
@@ -174,6 +174,38 @@ Nullable objects:
 {col: 1, row: 2} or null
 ```
 
+## Undefined types / Optional parameters
+
+A type can be made to allow that value or undefined by putting a `*` on the end of the type.  This effectively allows for some arguments to be optional.  Make sure not to put optional types before nonoptional types.
+
+```javascript
+['Number', 'String*', 'Number']
+```
+
+The above signature can accept a number and a string and return a number, or it can just accept a number and return a number.
+
+Like with nullable types, array and object literals use the special key with a `*` instead of a `?`:
+
+Optional arrays and tuples:
+
+```javascript
+['Number', '[]*']
+[1, 2, 3] or undefined
+
+['Number, 'String', 'Boolean', '[]*']
+[1, 'a', true] or undefined
+```
+
+Nullable objects:
+
+```javascript
+{'*': 'Number', '{}*': true}
+{a: 1, b: 2, c: 3} or undefined
+
+{col: 'Number', row: 'Number', '{}*': true}
+{col: 1, row: 2} or undefined
+```
+
 ## Type Aliases
 
 Writing out the type signature for an object with a lot of keys for a lot of functions is lame, so Deodorant.js gives you _type aliases_.  Register one with the `addAlias` method:
@@ -304,8 +336,9 @@ someFn: function(arr, obj) {
 
 
 ## Wishlist
-
-* Improve error messages for objects (say which keys/values didn't validate)
-* Better error messages for malformed type annotations (objects which contain extra quote marks)
+* Optional arguments, maybe something like ['String*', 'String'] for a function that can optionally take a string parameter and returns a string. An optional parameter cannot come before a nonoptional parameter, and can't be the return type of a function.
+* For functions returning Void, recheck the parameters passed in after the function is called, since Void usually means those parameters would be mutated
+* Allow annotating a class to specify the types of member variables. On calling any method on that class, recheck the member variables to make sure they are the correct type.  Maybe have the class have a static value of types_: {var1: 'String', var2: 'String'}
+* Better error messages for malformed type annotations
 * Typecheck the arguments and return values of functions passed as parameters, maybe something like ['Number', '->', 'Number', '->', 'Number'] is a function that takes two numbers and returns a number?
 * Typecheck the returned value of a promise somehow by hooking into the promise chain?

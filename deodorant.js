@@ -20,24 +20,30 @@ var Deodorant = function(mode) {
     }
 
     function stripAnnotation(type) {
-        // If the value ends with a ? it is a nullable value
+        // If the value ends with a ? or * it is a nullable or optional value
         if (typeof type === 'string') {
-            // If there is a ? in the annotation,
-            // that is the start of the annotation
-            var qIdx = type.indexOf('?')
+            // Possible cases:
+            // 1) a plain type, return the type and no annotations
+            // 2) a type with a ? or *, return the type and the symbol
+            // 3) a type with filters, return the type, an empty symbol, and an array of filters
+            // 4) a type with a ? or * and filters, return the type, the symbol, and an array of filters
+            // Return it like this: [type, [symbol, filters...]] for convenience
+            // If there is a ? or * in the annotation, that is the start of the annotation
+            var qIdx = type.indexOf('?');
+            if (qIdx < 0) {
+                qIdx = type.indexOf('*');
+                if (qIdx < 0) {
+                    qIdx = type.indexOf('|');
+                }
+            }
             if (qIdx >= 0) {
                 return [
                     type.slice(0, qIdx),
                     type.slice(qIdx).split('|')
                 ];
             }
-            // Otherwise check for filters
             else {
-                var pieces = type.split('|');
-                return [
-                    pieces[0],
-                    pieces.slice(1, pieces.length)
-                ];
+                return [type, []];
             }
         }
         else if (Array.isArray(type)) {
@@ -85,9 +91,9 @@ var Deodorant = function(mode) {
         }
     }
 
-    function checkFilters(value, filters) {
-        for (var i=0; i<filters.length; i++) {
-            checkFilter(value, filters[i]);
+    function checkFilters(value, theseFilters) {
+        for (var i=0; i<theseFilters.length; i++) {
+            checkFilter(value, theseFilters[i]);
         }
     }
 
@@ -204,26 +210,33 @@ var Deodorant = function(mode) {
     }
 
     function checkValuesType(value, type) {
-
         var res = stripAnnotation(type);
         type = res[0];
         var annotation = res[1];
         var isNullable = annotation[0] === '?';
-        var filters = annotation.slice(1, annotation.length);
+        var isUndefinedable = annotation[0] === '*';
+        var theseFilters = annotation.slice(1, annotation.length);
 
         // Do nullable check
         if (isNullable && value === null) {
             return;
         }
-
-        if (filters.length > 0) {
-            checkFilters(value, filters);
+        if (isUndefinedable && value === undefined) {
+            return;
         }
 
+        if (theseFilters.length > 0) {
+            checkFilters(value, theseFilters);
+        }
+
+        //PositiveInteger -> Integer|gte:0 -> Number|isInteger|gte:0
+
         // Replace any aliases with a deep copy
-        // so we can do further modifications
+        // so we can do further modifications, and recurse
         if (typeof type === 'string' && type in aliases) {
             type = JSON.parse(JSON.stringify(aliases[type]));
+            checkValuesType(value, type);
+            return;
         }
 
 
@@ -303,14 +316,15 @@ var Deodorant = function(mode) {
             var args = (1 <= arguments.length ? Array.prototype.slice.call(arguments, 0) : []);
 
             // Check that we have the correct number of arguments
-            if (args.length !== signature.length - 1) {
-                throw new Error('Incorrect number of arguments for function "' + fnName + '": Expected ' + (signature.length - 1) + ', but got ' + args.length);
-            }
+            // Optional parameters make this check harder, do we actually need it though?
+            //if (args.length !== signature.length - 1) {
+            //    throw new Error('Incorrect number of arguments for function "' + fnName + '": Expected ' + (signature.length - 1) + ', but got ' + args.length);
+            //}
 
             // Check each argument's type
-            for (var i=0; i<args.length; i++) {
-                var arg = args[i];
+            for (var i=0; i<argTypes.length; i++) {
                 var argType = argTypes[i];
+                var arg = args[i];
 
                 try {
                     checkValuesType(arg, argType);
