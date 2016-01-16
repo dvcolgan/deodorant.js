@@ -48,7 +48,8 @@ var Deodorant = function(mode) {
         }
         else if (Array.isArray(type)) {
             // If the last element is the filter token, use that
-            if (type[type.length - 1].indexOf('[]') === 0) {
+            lastElement = type[type.length - 1]
+            if (typeof lastElement === 'string' && lastElement.indexOf('[]') === 0) {
                 annotation = type[type.length - 1].slice(2);
                 type = type.slice(0, -1);
                 return [type, annotation.split('|')];

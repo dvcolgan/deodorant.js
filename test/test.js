@@ -453,3 +453,12 @@ describe('checkModule', function() {
         expect(typedModule).to.not.have.all.keys('add_', 'sub_', 'mul_', 'div_')
     });
 });
+
+describe('edge cases', function() {
+    it('should allow an array of objects', function() {
+        expect(checkSignatureForValues(
+            [['String'], [{'*': 'String'}]],
+            [['a', 'b', 'c'], [{'a': 'a'}, {'b': 'b'}, {'c': 'c'}]]
+        )).to.not.throw();
+    });
+});
