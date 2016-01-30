@@ -462,3 +462,62 @@ describe('edge cases', function() {
         )).to.not.throw();
     });
 });
+
+describe('class inheritance', function() {
+    it('should let parent classes call methods on their children', function() {
+        /*
+        class ParentClass
+            constructor: ->
+                @called = false
+                @childMethod()
+
+        class ChildClass extends ParentClass
+            childMethod: ->
+                @called = true
+        */
+
+        var ChildClass, ParentClass, x,
+        extend = function(child, parent) {
+            for (var key in parent) {
+                if (hasProp.call(parent, key)) child[key] = parent[key];
+            }
+            function ctor() {
+                this.constructor = child;
+            } 
+            ctor.prototype = parent.prototype;
+            child.prototype = new ctor();
+            child.__super__ = parent.prototype; return child;
+        },
+        hasProp = {}.hasOwnProperty;
+
+        ParentClass = typecheck.checkClass((function() {
+            function ParentClass() {
+                this.called = false;
+                this.childMethod();
+            }
+
+            return ParentClass;
+
+        }))();
+
+        ChildClass = typecheck.checkClass((function(superClass) {
+            extend(ChildClass, superClass);
+
+            function ChildClass() {
+                return ChildClass.__super__.constructor.apply(this, arguments);
+            }
+
+            ChildClass.prototype.childMethod = function() {
+                return this.called = true
+            };
+
+            return ChildClass;
+
+        }))(ParentClass);
+
+        child = new ChildClass();
+
+        expect(child.called).to.be.true;
+
+    });
+});

@@ -336,6 +336,7 @@ someFn: function(arr, obj) {
 
 
 ## Wishlist
+* Currently inheritance in Coffeescript classes breaks if you typecheck the parent class and the child class both.  It works as expected if you only check the child class, but this is obviously nonideal.
 * For functions returning Void, recheck the parameters passed in after the function is called, since Void usually means those parameters would be mutated
 * Allow annotating a class to specify the types of member variables. On calling any method on that class, recheck the member variables to make sure they are the correct type.  Maybe have the class have a static value of types_: {var1: 'String', var2: 'String'}
 * Better error messages for malformed type annotations
