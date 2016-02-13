@@ -151,7 +151,7 @@ var Deodorant = function(mode) {
         // the key is present and the type checks
         for (var key in type) {
             var subType = type[key];
-            if (value[key] == undefined) {
+            if (value[key] === undefined) {
                 throw new Error('Object missing key ' + key);
             }
             var subValue = value[key];

@@ -461,6 +461,24 @@ describe('edge cases', function() {
             [['a', 'b', 'c'], [{'a': 'a'}, {'b': 'b'}, {'c': 'c'}]]
         )).to.not.throw();
     });
+    it('should count a null key on an object to still be a key', function() {
+        expect(checkSignatureForValues(
+            [{x: 'String', y: 'String?'}, 'String'],
+            [{x: 'a', y: 'b'}, 'c']
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            [{x: 'String', y: 'String?'}, 'String'],
+            [{x: 'a', y: null}, 'c']
+        )).to.not.throw();
+        expect(checkSignatureForValues(
+            [{x: 'String', y: 'String?'}, 'String'],
+            [{x: 'a'}, 'c']
+        )).to.throw();
+        expect(checkSignatureForValues(
+            [{x: 'String', y: 'String?'}, 'String'],
+            [{x: null, y: null}, 'c']
+        )).to.throw();
+    });
 });
 
 describe('class inheritance', function() {
