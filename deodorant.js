@@ -60,11 +60,13 @@ var Deodorant = function(mode) {
         }
         else if (type !== null && typeof type == 'object') {
             for (var typeKey in type) {
-                if (typeKey.indexOf('{}') === 0) {
-                    annotation = typeKey.slice(2);
-                    delete type[typeKey];
+                if (type.hasOwnProperty(typeKey)) {
+                    if (typeKey.indexOf('{}') === 0) {
+                        annotation = typeKey.slice(2);
+                        delete type[typeKey];
 
-                    return [type, annotation.split('|')];
+                        return [type, annotation.split('|')];
+                    }
                 }
             }
             return [type, []];
@@ -136,12 +138,14 @@ var Deodorant = function(mode) {
     function checkSingleTypeObjectType(value, type) {
         var subType = type['*'];
         for (var key in value) {
-            var subValue = value[key];
-            try {
-                checkValuesType(subValue, subType);
-            }
-            catch (e) {
-                throw new Error(key + ' in object does not match: ' + e.message);
+            if (value.hasOwnProperty(key)) {
+                var subValue = value[key];
+                try {
+                    checkValuesType(subValue, subType);
+                }
+                catch (e) {
+                    throw new Error(key + ' in object does not match: ' + e.message);
+                }
             }
         }
     }
@@ -150,16 +154,18 @@ var Deodorant = function(mode) {
         // Go through each key:value pair and make sure
         // the key is present and the type checks
         for (var key in type) {
-            var subType = type[key];
-            if (value[key] === undefined) {
-                throw new Error('Object missing key ' + key);
-            }
-            var subValue = value[key];
-            try {
-                checkValuesType(subValue, subType);
-            }
-            catch (e) {
-                throw new Error('Key ' + key + ' does not match: ' + e.message);
+            if (type.hasOwnProperty(key)) {
+                var subType = type[key];
+                if (value[key] === undefined) {
+                    throw new Error('Object missing key ' + key);
+                }
+                var subValue = value[key];
+                try {
+                    checkValuesType(subValue, subType);
+                }
+                catch (e) {
+                    throw new Error('Key ' + key + ' does not match: ' + e.message);
+                }
             }
         }
     }
@@ -357,32 +363,36 @@ var Deodorant = function(mode) {
 
         // Parse out the module's type signatures and functions
         for (var key in spec) {
-            var value = spec[key];
-            if (key[key.length-1] === '_') {
-                signatures[key] = value;
-            }
-            else if (typeof value === 'function') {
-                // If there is also a type signature hold on to this fn,
-                // otherwise just put it in the new module as is
-                value = value.bind(typedModule);
-                if (spec[(key + '_')]) {
-                    fns[key] = value;
+            if (spec.hasOwnProperty(key)) {
+                var value = spec[key];
+                if (key[key.length-1] === '_') {
+                    signatures[key] = value;
+                }
+                else if (typeof value === 'function') {
+                    // If there is also a type signature hold on to this fn,
+                    // otherwise just put it in the new module as is
+                    value = value.bind(typedModule);
+                    if (spec[(key + '_')]) {
+                        fns[key] = value;
+                    }
+                    else {
+                        typedModule[key] = value;
+                    }
                 }
                 else {
                     typedModule[key] = value;
                 }
-            }
-            else {
-                typedModule[key] = value;
             }
         }
 
 
         // Wrap each function in the module
         for (var fnName in fns) {
-            var fn = fns[fnName];
-            var signature = signatures[fnName + '_'];
-            typedModule[fnName] = checkFunction(signature, fn, fnName);
+            if (fns.hasOwnProperty(fnName)) {
+                var fn = fns[fnName];
+                var signature = signatures[fnName + '_'];
+                typedModule[fnName] = checkFunction(signature, fn, fnName);
+            }
         }
 
         return typedModule;
